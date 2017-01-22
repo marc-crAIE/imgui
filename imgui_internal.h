@@ -985,6 +985,16 @@ struct IMGUI_API ImGuiGroupData
     bool        EmitItem;
 };
 
+// Stacked data for PushHitTest()/PopHitTest()
+struct ImGuiHitTestData
+{
+    ImGuiHitTestCallback Callback;
+    void*                UserData;
+
+    ImGuiHitTestData()                                                      { Callback = NULL; UserData = NULL; }
+    ImGuiHitTestData(ImGuiHitTestCallback callback, void* user_data = NULL) { Callback = callback; UserData = user_data; }
+};
+
 // Simple column measurement, currently used for MenuItem() only.. This is very short-sighted/throw-away code and NOT a generic helper.
 struct IMGUI_API ImGuiMenuColumns
 {
@@ -2053,8 +2063,10 @@ struct IMGUI_API ImGuiWindowTempData
     // We store the current settings outside of the vectors to increase memory locality (reduce cache misses). The vectors are rarely modified. Also it allows us to not heap allocate for short-lived windows which are not using those settings.
     float                   ItemWidth;              // Current item width (>0.0: width in pixels, <0.0: align xx pixels to the right of window).
     float                   TextWrapPos;            // Current text wrap pos.
+    ImGuiHitTestData        HitTest;                // Current item hit test function
     ImVector<float>         ItemWidthStack;         // Store item widths to restore (attention: .back() is not == ItemWidth)
     ImVector<float>         TextWrapPosStack;       // Store text wrap pos to restore (attention: .back() is not == TextWrapPos)
+    ImVector<ImGuiHitTestData> HitTestStack;        // Store hit test function to restore (attention: .back() is not == HitTest)
 };
 
 // Storage for one window

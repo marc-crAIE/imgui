@@ -3381,6 +3381,7 @@ void ImGui::GcCompactTransientWindowBuffers(ImGuiWindow* window)
     window->DC.ChildWindows.clear();
     window->DC.ItemWidthStack.clear();
     window->DC.TextWrapPosStack.clear();
+    window->DC.HitTestStack.clear();
 }
 
 void ImGui::GcAwakeTransientWindowBuffers(ImGuiWindow* window)
@@ -6650,6 +6651,7 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         window->DC.TextWrapPos = -1.0f; // disabled
         window->DC.ItemWidthStack.resize(0);
         window->DC.TextWrapPosStack.resize(0);
+        window->DC.HitTestStack.resize(0);
 
         if (window->AutoFitFramesX > 0)
             window->AutoFitFramesX--;
@@ -7063,6 +7065,20 @@ void ImGui::PopTextWrapPos()
     ImGuiWindow* window = GetCurrentWindow();
     window->DC.TextWrapPos = window->DC.TextWrapPosStack.back();
     window->DC.TextWrapPosStack.pop_back();
+}
+
+void ImGui::PushHitTest(ImGuiHitTestCallback callback, void* user_data)
+{
+    ImGuiWindow* window = GetCurrentWindow();
+    window->DC.HitTestStack.push_back(window->DC.HitTest);
+    window->DC.HitTest = ImGuiHitTestData(callback, user_data);
+}
+
+void ImGui::PopHitTest()
+{
+    ImGuiWindow* window = GetCurrentWindow();
+    window->DC.HitTest = window->DC.HitTestStack.back();
+    window->DC.HitTestStack.pop_back();
 }
 
 static ImGuiWindow* GetCombinedRootWindow(ImGuiWindow* window, bool popup_hierarchy)
@@ -7641,6 +7657,10 @@ bool ImGui::IsMouseHoveringRect(const ImVec2& r_min, const ImVec2& r_max, bool c
     const ImRect rect_for_touch(rect_clipped.Min - g.Style.TouchExtraPadding, rect_clipped.Max + g.Style.TouchExtraPadding);
     if (!rect_for_touch.Contains(g.IO.MousePos))
         return false;
+
+    if (g.CurrentWindow->DC.HitTest.Callback && !g.CurrentWindow->DC.HitTest.Callback(g.IO.MousePos, r_min, r_max, g.CurrentWindow->DC.HitTest.UserData))
+        return false;
+
     return true;
 }
 

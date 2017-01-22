@@ -2482,6 +2482,55 @@ static void ShowDemoWindowWidgets()
         ImGui::TreePop();
     }
 
+#ifdef IMGUI_HAS_HIT_TEST
+    IMGUI_DEMO_MARKER("Widgets/Hit Test");
+    if (ImGui::TreeNode("Hit Test"))
+    {
+        struct MyHitTests
+        {
+            static bool CircleHitTest(const ImVec2& point, const ImVec2& min, const ImVec2& max, void*)
+            {
+                const ImVec2 center = ImVec2((min.x + max.x) / 2, (min.y + max.y) / 2);
+                const ImVec2 radii = ImVec2(center.x - min.x, center.y - min.y);
+                if (radii.x <= 0.0f || radii.y <= 0.0f) // ignore zero size rects
+                    return false;
+                ImVec2 point_on_unit_circle = ImVec2((point.x - center.x) / radii.x, (point.y - center.y) / radii.y);
+                float distance_on_unit_circle = point_on_unit_circle.x * point_on_unit_circle.x + point_on_unit_circle.y * point_on_unit_circle.y;
+                return distance_on_unit_circle <= 1.0f;
+            }
+        };
+
+        static bool show_hit_area = true;
+        ImGui::Checkbox("Show Hit Area", &show_hit_area);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 75.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.5f, 0.5f));
+
+        ImGui::BeginGroup();
+        static int button_without_hit_test_click_count = 0;
+        if (ImGui::Button("ImGui::Button()\nwithout hit test!", ImVec2(150, 150)))
+            ++button_without_hit_test_click_count;
+        if (show_hit_area)
+            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), IM_COL32(255, 0, 0, 64));
+        ImGui::Text("Clicks: %d", button_without_hit_test_click_count);
+        ImGui::EndGroup();
+        ImGui::SameLine();
+        ImGui::BeginGroup();
+        static int button_with_hit_test_click_count = 0;
+        ImGui::PushHitTest(&MyHitTests::CircleHitTest);
+        if (ImGui::Button("ImGui::Button()\nwith hit test!", ImVec2(150, 150)))
+            ++button_with_hit_test_click_count;
+        if (show_hit_area)
+            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), IM_COL32(255, 0, 0, 64), 75.0f);
+        ImGui::PopHitTest();
+        ImGui::Text("Clicks: %d", button_with_hit_test_click_count);
+        ImGui::EndGroup();
+        ImGui::PopStyleVar(2);
+
+        ImGui::TreePop();
+    }
+#endif
+
     // Demonstrate BeginDisabled/EndDisabled using a checkbox located at the bottom of the section (which is a bit odd:
     // logically we'd have this checkbox at the top of the section, but we don't want this feature to steal that space)
     if (disable_all)
@@ -6039,6 +6088,9 @@ void ImGui::ShowAboutWindow(bool* p_open)
 #endif
 #ifdef __clang_version__
         ImGui::Text("define: __clang_version__=%s", __clang_version__);
+#endif
+#ifdef IMGUI_HAS_HIT_TEST
+        ImGui::Text("extension: HIT_TEST");
 #endif
         ImGui::Separator();
         ImGui::Text("io.BackendPlatformName: %s", io.BackendPlatformName ? io.BackendPlatformName : "NULL");
