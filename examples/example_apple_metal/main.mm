@@ -19,13 +19,17 @@
 #include "imgui_impl_osx.h"
 @interface AppViewController : NSViewController
 @end
+@interface AppMTKView : MTKView
+@end
 #else
 @interface AppViewController : UIViewController
+@end
+@interface AppMTKView : MTKView
 @end
 #endif
 
 @interface AppViewController () <MTKViewDelegate>
-@property (nonatomic, readonly) MTKView *mtkView;
+@property (nonatomic, readonly) AppMTKView *mtkView;
 @property (nonatomic, strong) id <MTLDevice> device;
 @property (nonatomic, strong) id <MTLCommandQueue> commandQueue;
 @end
@@ -82,14 +86,14 @@
     return self;
 }
 
--(MTKView *)mtkView
+-(AppMTKView *)mtkView
 {
-    return (MTKView *)self.view;
+    return (AppMTKView *)self.view;
 }
 
 -(void)loadView
 {
-    self.view = [[MTKView alloc] initWithFrame:CGRectMake(0, 0, 1200, 720)];
+    self.view = [[AppMTKView alloc] initWithFrame:CGRectMake(0, 0, 1200, 720)];
 }
 
 -(void)viewDidLoad
@@ -100,22 +104,13 @@
     self.mtkView.delegate = self;
 
 #if TARGET_OS_OSX
-    // Add a tracking area in order to receive mouse events whenever the mouse is within the bounds of our view
-    NSTrackingArea *trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
-                                                                options:NSTrackingMouseMoved | NSTrackingInVisibleRect | NSTrackingActiveAlways
-                                                                  owner:self
-                                                               userInfo:nil];
-    [self.view addTrackingArea:trackingArea];
 
-    // If we want to receive key events, we either need to be in the responder chain of the key view,
-    // or else we can install a local monitor. The consequence of this heavy-handed approach is that
-    // we receive events for all controls, not just Dear ImGui widgets. If we had native controls in our
-    // window, we'd want to be much more careful than just ingesting the complete event stream.
-    // To match the behavior of other backends, we pass every event down to the OS.
-    NSEventMask eventMask = NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged;
+    // Some events do not raise callbacks of AppView in some circumstances (for example when CMD key is held down).
+    // This monitor taps into global event stream and captures these events.
+    NSEventMask eventMask = NSEventMaskFlagsChanged;
     [NSEvent addLocalMonitorForEventsMatchingMask:eventMask handler:^NSEvent * _Nullable(NSEvent *event)
     {
-        ImGui_ImplOSX_HandleEvent(event, self.view);
+        ImGui_ImplOSX_HandleEvent(event, self.mtkView);
         return event;
     }];
 
@@ -217,27 +212,55 @@
 {
 }
 
+@end
+
+//-----------------------------------------------------------------------------------
+// AppMTKView
+//-----------------------------------------------------------------------------------
+
+@implementation AppMTKView
+
 //-----------------------------------------------------------------------------------
 // Input processing
 //-----------------------------------------------------------------------------------
 
 #if TARGET_OS_OSX
 
+-(void) initTrackingArea
+{
+    NSTrackingAreaOptions options = (NSTrackingActiveAlways | NSTrackingInVisibleRect |
+                             NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved);
+
+    NSTrackingArea *area = [[NSTrackingArea alloc] initWithRect:[self bounds]
+                                                        options:options
+                                                          owner:self
+                                                       userInfo:nil];
+
+    [self addTrackingArea:area];
+}
+
+-(void)updateTrackingAreas                  { [self initTrackingArea]; }
+
+-(BOOL)acceptsFirstResponder                { return true; }
+
 // Forward Mouse/Keyboard events to Dear ImGui OSX backend.
 // Other events are registered via addLocalMonitorForEventsMatchingMask()
--(void)mouseDown:(NSEvent *)event           { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)rightMouseDown:(NSEvent *)event      { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)otherMouseDown:(NSEvent *)event      { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)mouseUp:(NSEvent *)event             { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)rightMouseUp:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)otherMouseUp:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)mouseMoved:(NSEvent *)event          { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)mouseDragged:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)rightMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)rightMouseDragged:(NSEvent *)event   { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)otherMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)otherMouseDragged:(NSEvent *)event   { ImGui_ImplOSX_HandleEvent(event, self.view); }
--(void)scrollWheel:(NSEvent *)event         { ImGui_ImplOSX_HandleEvent(event, self.view); }
+-(void)mouseDown:(NSEvent *)event           { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseDown:event]; }
+-(void)rightMouseDown:(NSEvent *)event      { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseDown:event]; }
+-(void)otherMouseDown:(NSEvent *)event      { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseDown:event]; }
+-(void)mouseUp:(NSEvent *)event             { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseUp:event]; }
+-(void)rightMouseUp:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseUp:event]; }
+-(void)otherMouseUp:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseUp:event]; }
+-(void)mouseMoved:(NSEvent *)event          { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseMoved:event]; }
+-(void)mouseDragged:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseDragged:event]; }
+-(void)rightMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self); }
+-(void)rightMouseDragged:(NSEvent *)event   { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseDragged:event]; }
+-(void)otherMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self); }
+-(void)otherMouseDragged:(NSEvent *)event   { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseDragged:event]; }
+-(void)scrollWheel:(NSEvent *)event         { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super scrollWheel:event]; }
+-(void)keyDown:(NSEvent *)event             { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super keyDown:event]; }
+-(void)keyUp:(NSEvent *)event               { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super keyUp:event]; }
+-(void)flagsChanged:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super flagsChanged:event]; }
 
 #else
 
@@ -249,7 +272,7 @@
 -(void)updateIOWithTouchEvent:(UIEvent *)event
 {
     UITouch *anyTouch = event.allTouches.anyObject;
-    CGPoint touchLocation = [anyTouch locationInView:self.view];
+    CGPoint touchLocation = [anyTouch locationInView:self];
     ImGuiIO &io = ImGui::GetIO();
     io.MousePos = ImVec2(touchLocation.x, touchLocation.y);
 

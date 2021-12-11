@@ -38,7 +38,7 @@
 {
     // Some events do not raise callbacks of AppView in some circumstances (for example when CMD key is held down).
     // This monitor taps into global event stream and captures these events.
-    NSEventMask eventMask = NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged;
+    NSEventMask eventMask = NSEventMaskFlagsChanged;
     [NSEvent addLocalMonitorForEventsMatchingMask:eventMask handler:^NSEvent * _Nullable(NSEvent *event)
     {
         ImGui_ImplOSX_HandleEvent(event, self);
@@ -160,19 +160,22 @@
 
 // Forward Mouse/Keyboard events to Dear ImGui OSX backend.
 // Other events are registered via addLocalMonitorForEventsMatchingMask()
--(void)mouseDown:(NSEvent *)event           { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)rightMouseDown:(NSEvent *)event      { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)otherMouseDown:(NSEvent *)event      { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)mouseUp:(NSEvent *)event             { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)rightMouseUp:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)otherMouseUp:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)mouseMoved:(NSEvent *)event          { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)mouseDragged:(NSEvent *)event        { ImGui_ImplOSX_HandleEvent(event, self); }
+-(void)mouseDown:(NSEvent *)event           { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseDown:event]; }
+-(void)rightMouseDown:(NSEvent *)event      { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseDown:event]; }
+-(void)otherMouseDown:(NSEvent *)event      { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseDown:event]; }
+-(void)mouseUp:(NSEvent *)event             { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseUp:event]; }
+-(void)rightMouseUp:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseUp:event]; }
+-(void)otherMouseUp:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseUp:event]; }
+-(void)mouseMoved:(NSEvent *)event          { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseMoved:event]; }
+-(void)mouseDragged:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super mouseDragged:event]; }
 -(void)rightMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)rightMouseDragged:(NSEvent *)event   { ImGui_ImplOSX_HandleEvent(event, self); }
+-(void)rightMouseDragged:(NSEvent *)event   { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super rightMouseDragged:event]; }
 -(void)otherMouseMoved:(NSEvent *)event     { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)otherMouseDragged:(NSEvent *)event   { ImGui_ImplOSX_HandleEvent(event, self); }
--(void)scrollWheel:(NSEvent *)event         { ImGui_ImplOSX_HandleEvent(event, self); }
+-(void)otherMouseDragged:(NSEvent *)event   { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super otherMouseDragged:event]; }
+-(void)scrollWheel:(NSEvent *)event         { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super scrollWheel:event]; }
+-(void)keyDown:(NSEvent *)event             { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super keyDown:event]; }
+-(void)keyUp:(NSEvent *)event               { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super keyUp:event]; }
+-(void)flagsChanged:(NSEvent *)event        { if (!ImGui_ImplOSX_HandleEvent(event, self)) [super flagsChanged:event]; }
 
 @end
 
