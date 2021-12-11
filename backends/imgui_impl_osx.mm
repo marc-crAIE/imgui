@@ -17,6 +17,7 @@
 #include "imgui_impl_osx.h"
 #import <Cocoa/Cocoa.h>
 #include <mach/mach_time.h>
+#include <wctype.h>
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
@@ -39,12 +40,13 @@
 @class ImFocusObserver;
 
 // Data
-static double         g_HostClockPeriod = 0.0;
-static double         g_Time = 0.0;
-static NSCursor*      g_MouseCursors[ImGuiMouseCursor_COUNT] = {};
-static bool           g_MouseCursorHidden = false;
-static bool           g_MouseJustPressed[ImGuiMouseButton_COUNT] = {};
-static bool           g_MouseDown[ImGuiMouseButton_COUNT] = {};
+static double           g_HostClockPeriod = 0.0;
+static double           g_Time = 0.0;
+static NSCursor*        g_MouseCursors[ImGuiMouseCursor_COUNT] = {};
+static bool             g_MouseCursorHidden = false;
+static bool             g_MouseJustPressed[ImGuiMouseButton_COUNT] = {};
+static bool             g_MouseDown[ImGuiMouseButton_COUNT] = {};
+static ImGuiKeyModFlags g_KeyModifiers = ImGuiKeyModFlags_None;
 static ImFocusObserver* g_FocusObserver = NULL;
 
 // Undocumented methods for creating cursors.
@@ -115,121 +117,146 @@ bool ImGui_ImplOSX_Init()
     io.BackendPlatformName = "imgui_impl_osx";
 
     // Keyboard mapping. Dear ImGui will use those indices to peek into the io.KeyDown[] array.
-    const int offset_for_function_keys = 256 - 0xF700;
-    io.KeyMap[ImGuiKey_Tab]             = '\t';
-    io.KeyMap[ImGuiKey_LeftArrow]       = NSLeftArrowFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_RightArrow]      = NSRightArrowFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_UpArrow]         = NSUpArrowFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_DownArrow]       = NSDownArrowFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_PageUp]          = NSPageUpFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_PageDown]        = NSPageDownFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_Home]            = NSHomeFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_End]             = NSEndFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_Insert]          = NSInsertFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_Delete]          = NSDeleteFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_Backspace]       = 127;
-    io.KeyMap[ImGuiKey_Space]           = 32;
-    io.KeyMap[ImGuiKey_Enter]           = 13;
-    io.KeyMap[ImGuiKey_Escape]          = 27;
-#ifndef IMGUI_HAS_EXTRA_KEYS
-    io.KeyMap[ImGuiKey_KeyPadEnter]     = 3;
-    io.KeyMap[ImGuiKey_A]               = 'A';
-    io.KeyMap[ImGuiKey_C]               = 'C';
-    io.KeyMap[ImGuiKey_V]               = 'V';
-    io.KeyMap[ImGuiKey_X]               = 'X';
-    io.KeyMap[ImGuiKey_Y]               = 'Y';
-    io.KeyMap[ImGuiKey_Z]               = 'Z';
+    // Constnats for Virtual Keys can be found in header:
+    // /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h
+#ifdef IMGUI_HAS_EXTRA_KEYS
+    io.KeyMap[ImGuiKey_A]              = 0x00; /* kVK_ANSI_A */
+    io.KeyMap[ImGuiKey_S]              = 0x01; /* kVK_ANSI_S */
+    io.KeyMap[ImGuiKey_D]              = 0x02; /* kVK_ANSI_D */
+    io.KeyMap[ImGuiKey_F]              = 0x03; /* kVK_ANSI_F */
+    io.KeyMap[ImGuiKey_H]              = 0x04; /* kVK_ANSI_H */
+    io.KeyMap[ImGuiKey_G]              = 0x05; /* kVK_ANSI_G */
+    io.KeyMap[ImGuiKey_Z]              = 0x06; /* kVK_ANSI_Z */
+    io.KeyMap[ImGuiKey_X]              = 0x07; /* kVK_ANSI_X */
+    io.KeyMap[ImGuiKey_C]              = 0x08; /* kVK_ANSI_C */
+    io.KeyMap[ImGuiKey_V]              = 0x09; /* kVK_ANSI_V */
+    io.KeyMap[ImGuiKey_B]              = 0x0B; /* kVK_ANSI_B */
+    io.KeyMap[ImGuiKey_Q]              = 0x0C; /* kVK_ANSI_Q */
+    io.KeyMap[ImGuiKey_W]              = 0x0D; /* kVK_ANSI_W */
+    io.KeyMap[ImGuiKey_E]              = 0x0E; /* kVK_ANSI_E */
+    io.KeyMap[ImGuiKey_R]              = 0x0F; /* kVK_ANSI_R */
+    io.KeyMap[ImGuiKey_Y]              = 0x10; /* kVK_ANSI_Y */
+    io.KeyMap[ImGuiKey_T]              = 0x11; /* kVK_ANSI_T */
+    io.KeyMap[ImGuiKey_1]              = 0x12; /* kVK_ANSI_1 */
+    io.KeyMap[ImGuiKey_2]              = 0x13; /* kVK_ANSI_2 */
+    io.KeyMap[ImGuiKey_3]              = 0x14; /* kVK_ANSI_3 */
+    io.KeyMap[ImGuiKey_4]              = 0x15; /* kVK_ANSI_4 */
+    io.KeyMap[ImGuiKey_6]              = 0x16; /* kVK_ANSI_6 */
+    io.KeyMap[ImGuiKey_5]              = 0x17; /* kVK_ANSI_5 */
+    io.KeyMap[ImGuiKey_Equal]          = 0x18; /* kVK_ANSI_Equal */
+    io.KeyMap[ImGuiKey_9]              = 0x19; /* kVK_ANSI_9 */
+    io.KeyMap[ImGuiKey_7]              = 0x1A; /* kVK_ANSI_7 */
+    io.KeyMap[ImGuiKey_Minus]          = 0x1B; /* kVK_ANSI_Minus */
+    io.KeyMap[ImGuiKey_8]              = 0x1C; /* kVK_ANSI_8 */
+    io.KeyMap[ImGuiKey_0]              = 0x1D; /* kVK_ANSI_0 */
+    io.KeyMap[ImGuiKey_RightBracket]   = 0x1E; /* kVK_ANSI_RightBracket */
+    io.KeyMap[ImGuiKey_O]              = 0x1F; /* kVK_ANSI_O */
+    io.KeyMap[ImGuiKey_U]              = 0x20; /* kVK_ANSI_U */
+    io.KeyMap[ImGuiKey_LeftBracket]    = 0x21; /* kVK_ANSI_LeftBracket */
+    io.KeyMap[ImGuiKey_I]              = 0x22; /* kVK_ANSI_I */
+    io.KeyMap[ImGuiKey_P]              = 0x23; /* kVK_ANSI_P */
+    io.KeyMap[ImGuiKey_L]              = 0x25; /* kVK_ANSI_L */
+    io.KeyMap[ImGuiKey_J]              = 0x26; /* kVK_ANSI_J */
+    io.KeyMap[ImGuiKey_Apostrophe]     = 0x27; /* kVK_ANSI_Quote */
+    io.KeyMap[ImGuiKey_K]              = 0x28; /* kVK_ANSI_K */
+    io.KeyMap[ImGuiKey_Semicolon]      = 0x29; /* kVK_ANSI_Semicolon */
+    io.KeyMap[ImGuiKey_Backslash]      = 0x2A; /* kVK_ANSI_Backslash */
+    io.KeyMap[ImGuiKey_Comma]          = 0x2B; /* kVK_ANSI_Comma */
+    io.KeyMap[ImGuiKey_Slash]          = 0x2C; /* kVK_ANSI_Slash */
+    io.KeyMap[ImGuiKey_N]              = 0x2D; /* kVK_ANSI_N */
+    io.KeyMap[ImGuiKey_M]              = 0x2E; /* kVK_ANSI_M */
+    io.KeyMap[ImGuiKey_Period]         = 0x2F; /* kVK_ANSI_Period */
+    io.KeyMap[ImGuiKey_GraveAccent]    = 0x32; /* kVK_ANSI_Grave */
+    io.KeyMap[ImGuiKey_KeyPadDecimal]  = 0x41; /* kVK_ANSI_KeypadDecimal */
+    io.KeyMap[ImGuiKey_KeyPadMultiply] = 0x43; /* kVK_ANSI_KeypadMultiply */
+    io.KeyMap[ImGuiKey_KeyPadAdd]      = 0x45; /* kVK_ANSI_KeypadPlus */
+    io.KeyMap[ImGuiKey_NumLock]        = 0x47; /* kVK_ANSI_KeypadClear */
+    io.KeyMap[ImGuiKey_KeyPadDivide]   = 0x4B; /* kVK_ANSI_KeypadDivide */
+    io.KeyMap[ImGuiKey_KeyPadEnter]    = 0x4C; /* kVK_ANSI_KeypadEnter */
+    io.KeyMap[ImGuiKey_KeyPadSubtract] = 0x4E; /* kVK_ANSI_KeypadMinus */
+    io.KeyMap[ImGuiKey_KeyPadEqual]    = 0x51; /* kVK_ANSI_KeypadEquals */
+    io.KeyMap[ImGuiKey_KeyPad0]        = 0x52; /* kVK_ANSI_Keypad0 */
+    io.KeyMap[ImGuiKey_KeyPad1]        = 0x53; /* kVK_ANSI_Keypad1 */
+    io.KeyMap[ImGuiKey_KeyPad2]        = 0x54; /* kVK_ANSI_Keypad2 */
+    io.KeyMap[ImGuiKey_KeyPad3]        = 0x55; /* kVK_ANSI_Keypad3 */
+    io.KeyMap[ImGuiKey_KeyPad4]        = 0x56; /* kVK_ANSI_Keypad4 */
+    io.KeyMap[ImGuiKey_KeyPad5]        = 0x57; /* kVK_ANSI_Keypad5 */
+    io.KeyMap[ImGuiKey_KeyPad6]        = 0x58; /* kVK_ANSI_Keypad6 */
+    io.KeyMap[ImGuiKey_KeyPad7]        = 0x59; /* kVK_ANSI_Keypad7 */
+    io.KeyMap[ImGuiKey_KeyPad8]        = 0x5B; /* kVK_ANSI_Keypad8 */
+    io.KeyMap[ImGuiKey_KeyPad9]        = 0x5C; /* kVK_ANSI_Keypad9 */
+    io.KeyMap[ImGuiKey_Enter]          = 0x24; /* kVK_Return */
+    io.KeyMap[ImGuiKey_Tab]            = 0x30; /* kVK_Tab */
+    io.KeyMap[ImGuiKey_Space]          = 0x31; /* kVK_Space */
+    io.KeyMap[ImGuiKey_Backspace]      = 0x33; /* kVK_Delete */
+    io.KeyMap[ImGuiKey_Escape]         = 0x35; /* kVK_Escape */
+    io.KeyMap[ImGuiKey_LeftSuper]      = 0x37; /* kVK_Command */
+    io.KeyMap[ImGuiKey_LeftShift]      = 0x38; /* kVK_Shift */
+    io.KeyMap[ImGuiKey_CapsLock]       = 0x39; /* kVK_CapsLock */
+    io.KeyMap[ImGuiKey_LeftAlt]        = 0x3A; /* kVK_Option */
+    io.KeyMap[ImGuiKey_LeftControl]    = 0x3B; /* kVK_Control */
+    io.KeyMap[ImGuiKey_RightSuper]     = 0x36; /* kVK_RightCommand */
+    io.KeyMap[ImGuiKey_RightShift]     = 0x3C; /* kVK_RightShift */
+    io.KeyMap[ImGuiKey_RightAlt]       = 0x3D; /* kVK_RightOption */
+    io.KeyMap[ImGuiKey_RightControl]   = 0x3E; /* kVK_RightControl */
+//  io.KeyMap[ImGuiKey_]               = 0x3F; /* kVK_Function */
+//  io.KeyMap[ImGuiKey_]               = 0x40; /* kVK_F17 */
+//  io.KeyMap[ImGuiKey_]               = 0x48; /* kVK_VolumeUp */
+//  io.KeyMap[ImGuiKey_]               = 0x49; /* kVK_VolumeDown */
+//  io.KeyMap[ImGuiKey_]               = 0x4A; /* kVK_Mute */
+//  io.KeyMap[ImGuiKey_]               = 0x4F; /* kVK_F18 */
+//  io.KeyMap[ImGuiKey_]               = 0x50; /* kVK_F19 */
+//  io.KeyMap[ImGuiKey_]               = 0x5A; /* kVK_F20 */
+    io.KeyMap[ImGuiKey_F5]             = 0x60; /* kVK_F5 */
+    io.KeyMap[ImGuiKey_F6]             = 0x61; /* kVK_F6 */
+    io.KeyMap[ImGuiKey_F7]             = 0x62; /* kVK_F7 */
+    io.KeyMap[ImGuiKey_F3]             = 0x63; /* kVK_F3 */
+    io.KeyMap[ImGuiKey_F8]             = 0x64; /* kVK_F8 */
+    io.KeyMap[ImGuiKey_F9]             = 0x65; /* kVK_F9 */
+    io.KeyMap[ImGuiKey_F11]            = 0x67; /* kVK_F11 */
+    io.KeyMap[ImGuiKey_PrintScreen]    = 0x69; /* kVK_F13 */
+//  io.KeyMap[ImGuiKey_]               = 0x6A; /* kVK_F16 */
+//  io.KeyMap[ImGuiKey_]               = 0x6B; /* kVK_F14 */
+    io.KeyMap[ImGuiKey_F10]            = 0x6D; /* kVK_F10 */
+    io.KeyMap[ImGuiKey_Menu]           = 0x6E;
+    io.KeyMap[ImGuiKey_F12]            = 0x6F; /* kVK_F12 */
+//  io.KeyMap[ImGuiKey_]               = 0x71; /* kVK_F15 */
+    io.KeyMap[ImGuiKey_Insert]         = 0x72; /* kVK_Help */
+    io.KeyMap[ImGuiKey_Home]           = 0x73; /* kVK_Home */
+    io.KeyMap[ImGuiKey_PageUp]         = 0x74; /* kVK_PageUp */
+    io.KeyMap[ImGuiKey_Delete]         = 0x75; /* kVK_ForwardDelete */
+    io.KeyMap[ImGuiKey_F4]             = 0x76; /* kVK_F4 */
+    io.KeyMap[ImGuiKey_End]            = 0x77; /* kVK_End */
+    io.KeyMap[ImGuiKey_F2]             = 0x78; /* kVK_F2 */
+    io.KeyMap[ImGuiKey_PageDown]       = 0x79; /* kVK_PageDown */
+    io.KeyMap[ImGuiKey_F1]             = 0x7A; /* kVK_F1 */
+    io.KeyMap[ImGuiKey_LeftArrow]      = 0x7B; /* kVK_LeftArrow */
+    io.KeyMap[ImGuiKey_RightArrow]     = 0x7C; /* kVK_RightArrow */
+    io.KeyMap[ImGuiKey_DownArrow]      = 0x7D; /* kVK_DownArrow */
+    io.KeyMap[ImGuiKey_UpArrow]        = 0x7E; /* kVK_UpArrow */
 #else
-    io.KeyMap[ImGuiKey_Apostrophe]      = '\''; // '
-    io.KeyMap[ImGuiKey_Comma]           = ','; // ,
-    io.KeyMap[ImGuiKey_Minus]           = '-'; // -
-    io.KeyMap[ImGuiKey_Period]          = '.'; // .
-    io.KeyMap[ImGuiKey_Slash]           = '/'; // /
-    io.KeyMap[ImGuiKey_Semicolon]       = ';'; // ;
-    io.KeyMap[ImGuiKey_Equal]           = '='; // =
-    io.KeyMap[ImGuiKey_LeftBracket]     = '['; // [
-    io.KeyMap[ImGuiKey_Backslash]       = '\\'; // \ (this text inhibit multiline comment caused by backlash)
-    io.KeyMap[ImGuiKey_RightBracket]    = ']'; // ]
-    io.KeyMap[ImGuiKey_GraveAccent]     = '`'; // `
-    io.KeyMap[ImGuiKey_CapsLock]        = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_ScrollLock]      = NSScrollLockFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_NumLock]         = NSClearLineFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_PrintScreen]     = NSPrintScreenFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_Pause]           = NSPauseFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_KeyPad0]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad1]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad2]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad3]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad4]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad5]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad6]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad7]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad8]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPad9]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadDecimal]   = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadDivide]    = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadMultiply]  = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadSubtract]  = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadAdd]       = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_KeyPadEnter]     = 3;
-    io.KeyMap[ImGuiKey_KeyPadEqual]     = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_LeftShift]       = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_LeftControl]     = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_LeftAlt]         = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_LeftSuper]       = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_RightShift]      = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_RightControl]    = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_RightAlt]        = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_RightSuper]      = 0; // FIXME: not implemented
-    io.KeyMap[ImGuiKey_Menu]            = NSMenuFunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_0]               = '0';
-    io.KeyMap[ImGuiKey_1]               = '1';
-    io.KeyMap[ImGuiKey_2]               = '2';
-    io.KeyMap[ImGuiKey_3]               = '3';
-    io.KeyMap[ImGuiKey_4]               = '4';
-    io.KeyMap[ImGuiKey_5]               = '5';
-    io.KeyMap[ImGuiKey_6]               = '6';
-    io.KeyMap[ImGuiKey_7]               = '7';
-    io.KeyMap[ImGuiKey_8]               = '8';
-    io.KeyMap[ImGuiKey_9]               = '9';
-    io.KeyMap[ImGuiKey_A]               = 'A';
-    io.KeyMap[ImGuiKey_B]               = 'B';
-    io.KeyMap[ImGuiKey_C]               = 'C';
-    io.KeyMap[ImGuiKey_D]               = 'D';
-    io.KeyMap[ImGuiKey_E]               = 'E';
-    io.KeyMap[ImGuiKey_F]               = 'F';
-    io.KeyMap[ImGuiKey_G]               = 'G';
-    io.KeyMap[ImGuiKey_H]               = 'H';
-    io.KeyMap[ImGuiKey_I]               = 'I';
-    io.KeyMap[ImGuiKey_J]               = 'J';
-    io.KeyMap[ImGuiKey_K]               = 'K';
-    io.KeyMap[ImGuiKey_L]               = 'L';
-    io.KeyMap[ImGuiKey_M]               = 'M';
-    io.KeyMap[ImGuiKey_N]               = 'N';
-    io.KeyMap[ImGuiKey_O]               = 'O';
-    io.KeyMap[ImGuiKey_P]               = 'P';
-    io.KeyMap[ImGuiKey_Q]               = 'Q';
-    io.KeyMap[ImGuiKey_R]               = 'R';
-    io.KeyMap[ImGuiKey_S]               = 'S';
-    io.KeyMap[ImGuiKey_T]               = 'T';
-    io.KeyMap[ImGuiKey_U]               = 'U';
-    io.KeyMap[ImGuiKey_V]               = 'V';
-    io.KeyMap[ImGuiKey_W]               = 'W';
-    io.KeyMap[ImGuiKey_X]               = 'X';
-    io.KeyMap[ImGuiKey_Y]               = 'Y';
-    io.KeyMap[ImGuiKey_Z]               = 'Z';
-    io.KeyMap[ImGuiKey_F1]              = NSF1FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F2]              = NSF2FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F3]              = NSF3FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F4]              = NSF4FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F5]              = NSF5FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F6]              = NSF6FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F7]              = NSF7FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F8]              = NSF8FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F9]              = NSF9FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F10]             = NSF10FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F11]             = NSF11FunctionKey + offset_for_function_keys;
-    io.KeyMap[ImGuiKey_F12]             = NSF12FunctionKey + offset_for_function_keys;
+    io.KeyMap[ImGuiKey_A]              = 0x00; /* kVK_ANSI_A */
+    io.KeyMap[ImGuiKey_Z]              = 0x06; /* kVK_ANSI_Z */
+    io.KeyMap[ImGuiKey_X]              = 0x07; /* kVK_ANSI_X */
+    io.KeyMap[ImGuiKey_C]              = 0x08; /* kVK_ANSI_C */
+    io.KeyMap[ImGuiKey_V]              = 0x09; /* kVK_ANSI_V */
+    io.KeyMap[ImGuiKey_Y]              = 0x10; /* kVK_ANSI_Y */
+    io.KeyMap[ImGuiKey_KeyPadEnter]    = 0x4C; /* kVK_ANSI_KeypadEnter */
+    io.KeyMap[ImGuiKey_Enter]          = 0x24; /* kVK_Return */
+    io.KeyMap[ImGuiKey_Tab]            = 0x30; /* kVK_Tab */
+    io.KeyMap[ImGuiKey_Space]          = 0x31; /* kVK_Space */
+    io.KeyMap[ImGuiKey_Backspace]      = 0x33; /* kVK_Delete */
+    io.KeyMap[ImGuiKey_Escape]         = 0x35; /* kVK_Escape */
+    io.KeyMap[ImGuiKey_Insert]         = 0x72; /* kVK_Help */
+    io.KeyMap[ImGuiKey_Home]           = 0x73; /* kVK_Home */
+    io.KeyMap[ImGuiKey_PageUp]         = 0x74; /* kVK_PageUp */
+    io.KeyMap[ImGuiKey_Delete]         = 0x75; /* kVK_ForwardDelete */
+    io.KeyMap[ImGuiKey_End]            = 0x77; /* kVK_End */
+    io.KeyMap[ImGuiKey_PageDown]       = 0x79; /* kVK_PageDown */
+    io.KeyMap[ImGuiKey_LeftArrow]      = 0x7B; /* kVK_LeftArrow */
+    io.KeyMap[ImGuiKey_RightArrow]     = 0x7C; /* kVK_RightArrow */
+    io.KeyMap[ImGuiKey_DownArrow]      = 0x7D; /* kVK_DownArrow */
+    io.KeyMap[ImGuiKey_UpArrow]        = 0x7E; /* kVK_UpArrow */
 #endif // IMGUI_HAS_EXTRA_KEYS
 
     // Load cursors. Some of them are undocumented.
@@ -327,6 +354,15 @@ static void ImGui_ImplOSX_UpdateMouseCursorAndButtons()
     }
 }
 
+static void ImGui_ImplOSX_UpdateKeyModifiers()
+{
+    ImGuiIO& io = ImGui::GetIO();
+    io.KeyCtrl  = (g_KeyModifiers & ImGuiKeyModFlags_Ctrl)  != 0;
+    io.KeyShift = (g_KeyModifiers & ImGuiKeyModFlags_Shift) != 0;
+    io.KeyAlt   = (g_KeyModifiers & ImGuiKeyModFlags_Alt)   != 0;
+    io.KeySuper = (g_KeyModifiers & ImGuiKeyModFlags_Super) != 0;
+}
+
 void ImGui_ImplOSX_NewFrame(NSView* view)
 {
     // Setup display size
@@ -348,20 +384,8 @@ void ImGui_ImplOSX_NewFrame(NSView* view)
     io.DeltaTime = (float)(current_time - g_Time);
     g_Time = current_time;
 
+    ImGui_ImplOSX_UpdateKeyModifiers();
     ImGui_ImplOSX_UpdateMouseCursorAndButtons();
-}
-
-static int mapCharacterToKey(int c)
-{
-    if (c >= 'a' && c <= 'z')
-        return c - 'a' + 'A';
-    if (c == 25) // SHIFT+TAB -> TAB
-        return 9;
-    if (c >= 0 && c < 256)
-        return c;
-    if (c >= 0xF700 && c < 0xF700 + 256)
-        return c - 0xF700 + 256;
-    return -1;
 }
 
 bool ImGui_ImplOSX_HandleEvent(NSEvent* event, NSView* view)
@@ -422,57 +446,102 @@ bool ImGui_ImplOSX_HandleEvent(NSEvent* event, NSView* view)
         return io.WantCaptureMouse;
     }
 
-    // FIXME: All the key handling is wrong and broken. Refer to GLFW's cocoa_init.mm and cocoa_window.mm.
     if (event.type == NSEventTypeKeyDown)
     {
-        NSString* str = [event characters];
-        NSUInteger len = [str length];
-        for (NSUInteger i = 0; i < len; i++)
-        {
-            int c = [str characterAtIndex:i];
-            if (!io.KeySuper && !(c >= 0xF700 && c <= 0xFFFF) && c != 127)
-                io.AddInputCharacter((unsigned int)c);
+        if ([event isARepeat])
+            return io.WantCaptureKeyboard;
 
-            // We must reset in case we're pressing a sequence of special keys while keeping the command pressed
-            int key = mapCharacterToKey(c);
-            if (key != -1 && key < 256 && !io.KeySuper)
-                resetKeys();
-            if (key != -1)
-                io.KeysDown[key] = true;
+        unsigned short key_code = [event keyCode];
+        if (key_code < 256)
+            io.KeysDown[key_code] = true;
+
+        // Text should be interpreted via interpretKeyEvents: in NSView, which
+        // in consequence calls insertText:. We however have only NSEvents
+        // to play with.
+        // Burden of interpretation is on us, so we decided to pass trough
+        // only printable characters.
+        if (const unsigned int* text = (const unsigned int*)[[event characters] cStringUsingEncoding:NSUTF32StringEncoding])
+        {
+            while (unsigned int c = *text++)
+            {
+                if (iswprint(c))
+                    io.AddInputCharacter(c);
+            }
         }
+
         return io.WantCaptureKeyboard;
     }
 
     if (event.type == NSEventTypeKeyUp)
     {
-        NSString* str = [event characters];
-        NSUInteger len = [str length];
-        for (NSUInteger i = 0; i < len; i++)
-        {
-            int c = [str characterAtIndex:i];
-            int key = mapCharacterToKey(c);
-            if (key != -1)
-                io.KeysDown[key] = false;
-        }
+        unsigned short key_code = [event keyCode];
+        if (key_code < 256)
+            io.KeysDown[key_code] = false;
+
         return io.WantCaptureKeyboard;
     }
 
     if (event.type == NSEventTypeFlagsChanged)
     {
+        unsigned short key_code = [event keyCode];
         unsigned int flags = [event modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask;
 
-        bool oldKeyCtrl = io.KeyCtrl;
-        bool oldKeyShift = io.KeyShift;
-        bool oldKeyAlt = io.KeyAlt;
-        bool oldKeySuper = io.KeySuper;
-        io.KeyCtrl      = flags & NSEventModifierFlagControl;
-        io.KeyShift     = flags & NSEventModifierFlagShift;
-        io.KeyAlt       = flags & NSEventModifierFlagOption;
-        io.KeySuper     = flags & NSEventModifierFlagCommand;
+        ImGuiKeyModFlags imgui_flags = ImGuiKeyModFlags_None;
+        if (flags & NSEventModifierFlagShift)
+            imgui_flags |= ImGuiKeyModFlags_Shift;
+        if (flags & NSEventModifierFlagControl)
+            imgui_flags |= ImGuiKeyModFlags_Ctrl;
+        if (flags & NSEventModifierFlagOption)
+            imgui_flags |= ImGuiKeyModFlags_Alt;
+        if (flags & NSEventModifierFlagCommand)
+            imgui_flags |= ImGuiKeyModFlags_Super;
 
-        // We must reset them as we will not receive any keyUp event if they where pressed with a modifier
-        if ((oldKeyShift && !io.KeyShift) || (oldKeyCtrl && !io.KeyCtrl) || (oldKeyAlt && !io.KeyAlt) || (oldKeySuper && !io.KeySuper))
-            resetKeys();
+        if (g_KeyModifiers != imgui_flags)
+        {
+            g_KeyModifiers = imgui_flags;
+            ImGui_ImplOSX_UpdateKeyModifiers();
+        }
+
+#ifdef IMGUI_HAS_EXTRA_KEYS
+        if (key_code < 256)
+        {
+            ImGuiKey key = io.KeyMap[key_code];
+
+            // macOS does not generate down/up event for modifiers. We're trying
+            // to use hardware dependent masks to extract that information.
+            // 'imgui_mask' is left as a fallback.
+            NSEventModifierFlags mask = 0;
+            ImGuiKeyModFlags imgui_mask = ImGuiKeyModFlags_None;
+            switch ((int)key)
+            {
+                case ImGuiKey_LeftControl:  mask = 0x0001; imgui_mask = ImGuiKeyModFlags_Ctrl; break;
+                case ImGuiKey_RightControl: mask = 0x2000; imgui_mask = ImGuiKeyModFlags_Ctrl; break;
+                case ImGuiKey_LeftShift:    mask = 0x0002; imgui_mask = ImGuiKeyModFlags_Shift; break;
+                case ImGuiKey_RightShift:   mask = 0x0004; imgui_mask = ImGuiKeyModFlags_Shift; break;
+                case ImGuiKey_LeftSuper:    mask = 0x0008; imgui_mask = ImGuiKeyModFlags_Super; break;
+                case ImGuiKey_RightSuper:   mask = 0x0010; imgui_mask = ImGuiKeyModFlags_Super; break;
+                case ImGuiKey_LeftAlt:      mask = 0x0020; imgui_mask = ImGuiKeyModFlags_Alt; break;
+                case ImGuiKey_RightAlt:     mask = 0x0040; imgui_mask = ImGuiKeyModFlags_Alt; break;
+            }
+
+            if (mask)
+            {
+                NSEventModifierFlags modifier_flags = [event modifierFlags];
+                if (modifier_flags & mask)
+                    io.KeysDown[key] = true;
+                else
+                    io.KeysDown[key] = false;
+            }
+            else if (imgui_mask)
+            {
+                if (imgui_flags & imgui_mask)
+                    io.KeysDown[key] = true;
+                else
+                    io.KeysDown[key] = false;
+            }
+        }
+#endif // IMGUI_HAS_EXTRA_KEYS
+
         return io.WantCaptureKeyboard;
     }
 
