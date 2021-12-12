@@ -4790,8 +4790,14 @@ const char* ImGui::GetKeyName(ImGuiKey imgui_key)
 {
     static const char* const key_names[] =
     {
-        "", "Tab", "Left Arrow", "Right Arrow", "Up Arrow", "Down Arrow", "Page Up", "Page Down",
+#ifdef IMGUI_HAS_EXTRA_KEYS
+        "",
+#endif
+        "Tab", "Left Arrow", "Right Arrow", "Up Arrow", "Down Arrow", "Page Up", "Page Down",
         "Home", "End", "Insert", "Delete", "Backspace", "Space", "Enter", "Escape",
+#ifndef IMGUI_HAS_EXTRA_KEYS
+        "Key Pad Enter", "A", "C", "V", "X", "Y", "Z"
+#else
         "Apostrophe", "Comma", "Minus", "Period", "Slash", "Semicolon", "Equal", "Left Bracket",
         "Backslash", "Right Bracket", "Grave Accent", "Caps Lock", "Scroll Lock", "Num Lock", "Print Screen",
         "Pause", "Key Pad 0", "Key Pad 1", "Key Pad 2", "Key Pad 3", "Key Pad 4", "Key Pad 5", "Key Pad 6",
@@ -4801,6 +4807,7 @@ const char* ImGui::GetKeyName(ImGuiKey imgui_key)
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "G", "H", "I",
         "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "F1", "F2",
         "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
+#endif
     };
 
     IM_STATIC_ASSERT(ImGuiKey_COUNT == IM_ARRAYSIZE(key_names));
@@ -4816,13 +4823,21 @@ int ImGui::FindImGuiKey(int user_key_index)
     ImGuiContext& g = *GImGui;
 
     if (user_key_index < 0 || user_key_index >= IM_ARRAYSIZE(g.IO.KeysDown))
+#ifdef IMGUI_HAS_EXTRA_KEYS
         return ImGuiKey_None;
+#else
+        return -1;
+#endif
 
     for (int n = 0; n < ImGuiKey_COUNT; ++n)
         if (g.IO.KeyMap[n] == user_key_index)
             return n;
 
+#ifdef IMGUI_HAS_EXTRA_KEYS
     return ImGuiKey_None;
+#else
+    return -1;
+#endif
 }
 
 // Note that dear imgui doesn't know the semantic of each entry of io.KeysDown[]!

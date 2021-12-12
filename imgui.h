@@ -1356,7 +1356,9 @@ enum ImGuiSortDirection_
 // User fill ImGuiIO.KeyMap[] array with indices into the ImGuiIO.KeysDown[512] array
 enum ImGuiKey_
 {
+#ifdef IMGUI_HAS_EXTRA_KEYS // ifdefs are included to test ImGui with feature disabled
     ImGuiKey_None,
+#endif
     ImGuiKey_Tab,
     ImGuiKey_LeftArrow,
     ImGuiKey_RightArrow,
@@ -1372,6 +1374,15 @@ enum ImGuiKey_
     ImGuiKey_Space,
     ImGuiKey_Enter,
     ImGuiKey_Escape,
+#ifndef IMGUI_HAS_EXTRA_KEYS // ifdefs are included to test ImGui with feature disabled
+    ImGuiKey_KeyPadEnter,
+    ImGuiKey_A,                 // for text edit CTRL+A: select all
+    ImGuiKey_C,                 // for text edit CTRL+C: copy
+    ImGuiKey_V,                 // for text edit CTRL+V: paste
+    ImGuiKey_X,                 // for text edit CTRL+X: cut
+    ImGuiKey_Y,                 // for text edit CTRL+Y: redo
+    ImGuiKey_Z,                 // for text edit CTRL+Z: undo
+#else
     ImGuiKey_Apostrophe,     // '
     ImGuiKey_Comma,          // ,
     ImGuiKey_Minus,          // -
@@ -1462,6 +1473,7 @@ enum ImGuiKey_
     ImGuiKey_F10,       //
     ImGuiKey_F11,       //
     ImGuiKey_F12,       //
+#endif // IMGUI_HAS_EXTRA_KEYS
     ImGuiKey_COUNT
 };
 
