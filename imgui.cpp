@@ -4170,6 +4170,7 @@ void ImGui::NewFrame()
         g.DrawListSharedData.InitialFlags |= ImDrawListFlags_AntiAliasedFill;
     if (g.IO.BackendFlags & ImGuiBackendFlags_RendererHasVtxOffset)
         g.DrawListSharedData.InitialFlags |= ImDrawListFlags_AllowVtxOffset;
+    g.DrawListSharedData.InitialFringeScale = 1.0f / g.IO.DisplayFramebufferScale.y; // FIXME: Should we pick min/max/average?
 
     // Mark rendering data as invalid to prevent user who may have a handle on it to use it.
     for (int n = 0; n < g.Viewports.Size; n++)
