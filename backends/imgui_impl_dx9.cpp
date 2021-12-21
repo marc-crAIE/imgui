@@ -78,8 +78,8 @@ static void ImGui_ImplDX9_SetupRenderState(ImDrawData* draw_data)
     // Setup viewport
     D3DVIEWPORT9 vp;
     vp.X = vp.Y = 0;
-    vp.Width = (DWORD)draw_data->DisplaySize.x;
-    vp.Height = (DWORD)draw_data->DisplaySize.y;
+    vp.Width = (DWORD)(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
+    vp.Height = (DWORD)(draw_data->DisplaySize.y * draw_data->FramebufferScale.y);
     vp.MinZ = 0.0f;
     vp.MaxZ = 1.0f;
     bd->pd3dDevice->SetViewport(&vp);
