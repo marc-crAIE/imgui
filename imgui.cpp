@@ -936,6 +936,7 @@ static const float WINDOWS_MOUSE_WHEEL_SCROLL_LOCK_TIMER    = 2.00f;    // Lock 
 //-------------------------------------------------------------------------
 
 static void             SetCurrentWindow(ImGuiWindow* window);
+static void             SetWindowHitTest(ImGuiWindow* window, ImGuiHitTestData hit_test);
 static void             FindHoveredWindow();
 static ImGuiWindow*     CreateNewWindow(const char* name, ImGuiWindowFlags flags);
 static ImVec2           CalcNextScrollFromScrollTargetAndClamp(ImGuiWindow* window);
@@ -5109,6 +5110,9 @@ static void FindHoveredWindow()
                 continue;
         }
 
+        if (window->WindowHitTest.Callback && !window->WindowHitTest.Callback(g.IO.MousePos, window->Pos, window->Size, window->WindowHitTest.UserData))
+            continue;
+
         if (hovered_window == NULL)
             hovered_window = window;
         IM_MSVC_WARNING_SUPPRESS(28182); // [Static Analyzer] Dereferencing NULL pointer.
@@ -6225,6 +6229,8 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         SetWindowCollapsed(window, g.NextWindowData.CollapsedVal, g.NextWindowData.CollapsedCond);
     if (g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasFocus)
         FocusWindow(window);
+    if (g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasHitTest)
+        SetWindowHitTest(window, g.NextWindowData.WindowHitTestVal);
     if (window->Appearing)
         SetWindowConditionAllowFlags(window, ImGuiCond_Appearing, false);
 
@@ -7361,6 +7367,17 @@ void ImGui::SetWindowFocus(const char* name)
     }
 }
 
+static void SetWindowHitTest(ImGuiWindow* window, ImGuiHitTestData hitTest)
+{
+    window->WindowHitTest = hitTest;
+}
+
+void ImGui::SetWindowHitTest(const char* name, ImGuiHitTestCallback callback, void* user_data)
+{
+    if (ImGuiWindow* window = FindWindowByName(name))
+        SetWindowHitTest(window, ImGuiHitTestData(callback, user_data));
+}
+
 void ImGui::SetNextWindowPos(const ImVec2& pos, ImGuiCond cond, const ImVec2& pivot)
 {
     ImGuiContext& g = *GImGui;
@@ -7418,6 +7435,13 @@ void ImGui::SetNextWindowFocus()
 {
     ImGuiContext& g = *GImGui;
     g.NextWindowData.Flags |= ImGuiNextWindowDataFlags_HasFocus;
+}
+
+void ImGui::SetNextWindowHitTest(ImGuiHitTestCallback callback, void* user_data)
+{
+    ImGuiContext& g = *GImGui;
+    g.NextWindowData.Flags |= ImGuiNextWindowDataFlags_HasHitTest;
+    g.NextWindowData.WindowHitTestVal = ImGuiHitTestData(callback, user_data);
 }
 
 void ImGui::SetNextWindowBgAlpha(float alpha)

@@ -184,6 +184,7 @@ static void ShowExampleAppSimpleOverlay(bool* p_open);
 static void ShowExampleAppFullscreen(bool* p_open);
 static void ShowExampleAppWindowTitles(bool* p_open);
 static void ShowExampleAppCustomRendering(bool* p_open);
+static void ShowExampleAppWindowHitTest(bool* p_open);
 static void ShowExampleMenuFile();
 
 // Helper to display a little (?) mark which shows a tooltip when hovered.
@@ -284,6 +285,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
     static bool show_app_fullscreen = false;
     static bool show_app_window_titles = false;
     static bool show_app_custom_rendering = false;
+    static bool show_app_window_hit_test = true;
 
     if (show_app_main_menu_bar)       ShowExampleAppMainMenuBar();
     if (show_app_documents)           ShowExampleAppDocuments(&show_app_documents);
@@ -299,6 +301,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
     if (show_app_fullscreen)          ShowExampleAppFullscreen(&show_app_fullscreen);
     if (show_app_window_titles)       ShowExampleAppWindowTitles(&show_app_window_titles);
     if (show_app_custom_rendering)    ShowExampleAppCustomRendering(&show_app_custom_rendering);
+    if (show_app_window_hit_test)     ShowExampleAppWindowHitTest(&show_app_window_hit_test);
 
     // Dear ImGui Apps (accessible from the "Tools" menu)
     static bool show_app_metrics = false;
@@ -394,6 +397,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
             ImGui::MenuItem("Fullscreen window", NULL, &show_app_fullscreen);
             ImGui::MenuItem("Manipulating window titles", NULL, &show_app_window_titles);
             ImGui::MenuItem("Custom rendering", NULL, &show_app_custom_rendering);
+            ImGui::MenuItem("Window hit test", NULL, &show_app_window_hit_test);
             ImGui::MenuItem("Documents", NULL, &show_app_documents);
             ImGui::EndMenu();
         }
@@ -6092,6 +6096,9 @@ void ImGui::ShowAboutWindow(bool* p_open)
 #ifdef IMGUI_HAS_HIT_TEST
         ImGui::Text("extension: HIT_TEST");
 #endif
+#ifdef IMGUI_HAS_WINDOW_HIT_TEST
+        ImGui::Text("extension: WINDOW_HIT_TEST");
+#endif
         ImGui::Separator();
         ImGui::Text("io.BackendPlatformName: %s", io.BackendPlatformName ? io.BackendPlatformName : "NULL");
         ImGui::Text("io.BackendRendererName: %s", io.BackendRendererName ? io.BackendRendererName : "NULL");
@@ -7725,6 +7732,263 @@ static void ShowExampleAppCustomRendering(bool* p_open)
 
         ImGui::EndTabBar();
     }
+
+    ImGui::End();
+}
+
+static void ShowExampleAppWindowHitTest(bool* p_open)
+{
+    struct MyRect { ImVec2 Min; ImVec2 Max; };
+    struct MyCircle { ImVec2 Center; float Radius; };
+    struct MyTriangle { ImVec2 Min; ImVec2 Max; };
+
+    struct MyHitTestData
+    {
+        MyRect WorkArea;
+        ImVector<MyRect> Rects;
+        ImVector<MyCircle> Circles;
+        ImVector<MyTriangle> Triangles;
+    };
+
+    struct MyHitTests
+    {
+        static bool RectHitTest(const ImVec2& local_point, const MyRect& rect)
+        {
+            return rect.Min.x <= local_point.x && rect.Max.x >= local_point.x && rect.Min.y <= local_point.y && rect.Max.y >= local_point.y;
+        }
+
+        static bool CircleHitTest(const ImVec2& local_point, const MyCircle& circle)
+        {
+            ImVec2 point_on_unit_circle = ImVec2((local_point.x - circle.Center.x) / circle.Radius, (local_point.y - circle.Center.y) / circle.Radius);
+            float distance_on_unit_circle = point_on_unit_circle.x * point_on_unit_circle.x + point_on_unit_circle.y * point_on_unit_circle.y;
+            return distance_on_unit_circle <= 1.0f;
+        }
+
+        static bool TriangleHitTest(const ImVec2& local_point, const MyTriangle& triangle)
+        {
+            if (!RectHitTest(local_point, MyRect{ triangle.Min, triangle.Max }))
+                return false;
+
+            const float base_width = triangle.Max.x - triangle.Min.x;
+            const float height     = triangle.Max.y - triangle.Min.y;
+            const float width_at_height = base_width * (local_point.y - triangle.Min.y) / height;
+            const float x_offset = base_width * 0.5f - (local_point.x - triangle.Min.x);
+            const float x_distance = x_offset < 0 ? -x_offset : x_offset;
+
+            return x_distance <= width_at_height * 0.5f;
+        }
+
+        static bool MultiHitTest(const ImVec2& point, const ImVec2& min, const ImVec2& max, void* user_data)
+        {
+            MyHitTestData* hit_test_data = (MyHitTestData*)user_data;
+
+            if (!RectHitTest(point, hit_test_data->WorkArea)) // Hits outside of our work area are treated as usual
+                return true;
+
+            // Get test point in work area coordinates
+            const ImVec2 local_point = ImVec2(point.x - hit_test_data->WorkArea.Min.x, point.y - hit_test_data->WorkArea.Min.y);
+
+            for (const MyRect& rect : hit_test_data->Rects)
+            {
+                if (RectHitTest(local_point, rect))
+                    return true;
+            }
+
+            for (const MyCircle& circle : hit_test_data->Circles)
+            {
+                if (CircleHitTest(local_point, circle))
+                    return true;
+            }
+
+            for (const MyTriangle& triangle : hit_test_data->Triangles)
+            {
+                if (TriangleHitTest(local_point, triangle))
+                    return true;
+            }
+
+            return false;
+        }
+    };
+
+    static MyHitTestData hit_test_data;
+    static const void* dragged_shape = NULL;
+    static bool first_time_shown = true;
+
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowHitTest(&MyHitTests::MultiHitTest, &hit_test_data);
+
+    if (!ImGui::Begin("Example: Window Hit Test", p_open, ImGuiWindowFlags_NoScrollbar))
+    {
+        ImGui::End();
+        return;
+    }
+    IMGUI_DEMO_MARKER("Examples/Window Hit Test");
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    // Draw window background, since we requested no background
+    ImU32 background_color = ImGui::GetColorU32(ImGuiCol_WindowBg, ImGui::GetStyle().Alpha);
+    const ImVec2 window_pos = ImGui::GetWindowPos();
+    const ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->PushClipRect(ImVec2(window_pos.x, window_pos.y + ImGui::GetFrameHeight()), ImVec2(window_pos.x + window_size.x, window_pos.y + window_size.y), false);
+    draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x, hit_test_data.WorkArea.Min.y), background_color);
+    draw_list->AddRectFilled(ImVec2(window_pos.x, hit_test_data.WorkArea.Min.y), ImVec2(hit_test_data.WorkArea.Min.x, window_pos.y + window_size.y), background_color);
+    draw_list->AddRectFilled(ImVec2(hit_test_data.WorkArea.Max.x, hit_test_data.WorkArea.Min.y), ImVec2(window_pos.x + window_size.x, window_pos.y + window_size.y), background_color);
+    draw_list->AddRectFilled(ImVec2(hit_test_data.WorkArea.Min.x, hit_test_data.WorkArea.Max.y), ImVec2(hit_test_data.WorkArea.Max.x, window_pos.y + window_size.y), background_color);
+    draw_list->PopClipRect();
+
+    if (ImGui::Button("Add Rectangle", ImVec2(120.0f, 0.0f)))
+        hit_test_data.Rects.push_back(MyRect{ ImVec2(100.0f, 100.0f), ImVec2(200.0f, 200.0f) });
+    ImGui::SameLine();
+    if (ImGui::Button("Add Circle", ImVec2(120.0f, 0.0f)))
+        hit_test_data.Circles.push_back(MyCircle{ ImVec2(150.0f, 150.0f), 50.0f });
+    ImGui::SameLine();
+    if (ImGui::Button("Add Triangle", ImVec2(120.0f, 0.0f)) || first_time_shown)
+        hit_test_data.Triangles.push_back(MyTriangle{ ImVec2(100.0f, 100.0f), ImVec2(200.0f, 200.0f) });
+    ImGui::BeginDisabled(hit_test_data.Rects.Size == 0);
+    if (ImGui::Button("Remove Rectangle", ImVec2(120.0f, 0.0f)))
+        hit_test_data.Rects.pop_back();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(hit_test_data.Circles.Size == 0);
+    if (ImGui::Button("Remove Circle", ImVec2(120.0f, 0.0f)))
+        hit_test_data.Circles.pop_back();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(hit_test_data.Triangles.Size == 0);
+    if (ImGui::Button("Remove Triangle", ImVec2(120.0f, 0.0f)))
+        hit_test_data.Triangles.pop_back();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(hit_test_data.Rects.Size == 0 && hit_test_data.Circles.Size == 0 && hit_test_data.Triangles.Size == 0);
+    if (ImGui::Button("Clear", ImVec2(120.0f, 0.0f)))
+    {
+        hit_test_data.Rects.clear();
+        hit_test_data.Circles.clear();
+        hit_test_data.Triangles.clear();
+    }
+    ImGui::EndDisabled();
+    ImGui::TextUnformatted("Left click to move window\nRight click to move shape\nShapes are part of the window.");
+    ImGui::Separator();
+
+    const ImVec2 window_screen_content_region_max = ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x, ImGui::GetWindowPos().y + ImGui::GetWindowContentRegionMax().y);
+    hit_test_data.WorkArea.Min = ImGui::GetCursorScreenPos();
+    hit_test_data.WorkArea.Max = window_screen_content_region_max;
+
+    // Ensure work area is not empty
+    if (hit_test_data.WorkArea.Min.x < hit_test_data.WorkArea.Max.x && hit_test_data.WorkArea.Min.y < hit_test_data.WorkArea.Max.y)
+    {
+        ImGui::PushClipRect(hit_test_data.WorkArea.Min, hit_test_data.WorkArea.Max, true);
+
+        const ImVec2 point = ImGui::GetIO().MousePos;
+        const ImVec2 local_point = ImVec2(point.x - hit_test_data.WorkArea.Min.x, point.y - hit_test_data.WorkArea.Min.y);
+
+        for (MyRect& rect : hit_test_data.Rects)
+        {
+            draw_list->AddRectFilled(
+                ImVec2(hit_test_data.WorkArea.Min.x + rect.Min.x, hit_test_data.WorkArea.Min.y + rect.Min.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + rect.Max.x, hit_test_data.WorkArea.Min.y + rect.Max.y),
+                IM_COL32(255, 0, 0, 96));
+
+            draw_list->AddRect(
+                ImVec2(hit_test_data.WorkArea.Min.x + rect.Min.x, hit_test_data.WorkArea.Min.y + rect.Min.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + rect.Max.x, hit_test_data.WorkArea.Min.y + rect.Max.y),
+                IM_COL32(255, 255, 0, 240));
+
+            // Crude shape dragging
+            if (dragged_shape == NULL && MyHitTests::RectHitTest(local_point, rect) && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+                dragged_shape = &rect;
+            else if (dragged_shape == &rect && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+            {
+                const ImVec2& delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+                rect.Min.x += delta.x;
+                rect.Min.y += delta.y;
+                rect.Max.x += delta.x;
+                rect.Max.y += delta.y;
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
+            }
+            else if (dragged_shape == &rect)
+                dragged_shape = NULL;
+        }
+
+        for (MyCircle& circle : hit_test_data.Circles)
+        {
+            draw_list->AddCircleFilled(
+                ImVec2(hit_test_data.WorkArea.Min.x + circle.Center.x, hit_test_data.WorkArea.Min.y + circle.Center.y),
+                circle.Radius,
+                IM_COL32(0, 255, 0, 96));
+
+            draw_list->AddCircle(
+                ImVec2(hit_test_data.WorkArea.Min.x + circle.Center.x, hit_test_data.WorkArea.Min.y + circle.Center.y),
+                circle.Radius,
+                IM_COL32(255, 255, 0, 240));
+
+            // Crude shape dragging
+            if (dragged_shape == NULL && MyHitTests::CircleHitTest(local_point, circle) && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+                dragged_shape = &circle;
+            else if (dragged_shape == &circle && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+            {
+                const ImVec2& delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+                circle.Center.x += delta.x;
+                circle.Center.y += delta.y;
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
+            }
+            else if (dragged_shape == &circle)
+                dragged_shape = NULL;
+        }
+
+        for (MyTriangle& triangle : hit_test_data.Triangles)
+        {
+            const ImVec2 tip = ImVec2((triangle.Min.x + triangle.Max.x) * 0.5f, triangle.Min.y);
+
+            draw_list->AddTriangleFilled(
+                ImVec2(hit_test_data.WorkArea.Min.x + tip.x, hit_test_data.WorkArea.Min.y + tip.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + triangle.Max.x, hit_test_data.WorkArea.Min.y + triangle.Max.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + triangle.Min.x, hit_test_data.WorkArea.Min.y + triangle.Max.y),
+                IM_COL32(0, 0, 255, 96));
+
+            draw_list->AddTriangle(
+                ImVec2(hit_test_data.WorkArea.Min.x + tip.x, hit_test_data.WorkArea.Min.y + tip.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + triangle.Max.x, hit_test_data.WorkArea.Min.y + triangle.Max.y),
+                ImVec2(hit_test_data.WorkArea.Min.x + triangle.Min.x, hit_test_data.WorkArea.Min.y + triangle.Max.y),
+                IM_COL32(255, 255, 0, 240));
+
+            // Crude shape dragging
+            if (dragged_shape == NULL && MyHitTests::TriangleHitTest(local_point, triangle) && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+                dragged_shape = &triangle;
+            else if (dragged_shape == &triangle && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+            {
+                const ImVec2& delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+                triangle.Min.x += delta.x;
+                triangle.Min.y += delta.y;
+                triangle.Max.x += delta.x;
+                triangle.Max.y += delta.y;
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
+            }
+            else if (dragged_shape == &triangle)
+                dragged_shape = NULL;
+        }
+
+#if 0 // #debug: show hit points on shape
+        if (hit_test_data.Triangles.Size > 0)
+        {
+            for (float x = hit_test_data.WorkArea.Min.x; x < hit_test_data.WorkArea.Max.x; x += 2)
+            {
+                for (float y = hit_test_data.WorkArea.Min.y; y < hit_test_data.WorkArea.Max.y; y += 2)
+                {
+                    const ImVec2 local_point = ImVec2(x - hit_test_data.WorkArea.Min.x, y - hit_test_data.WorkArea.Min.y);
+                    draw_list->AddCircle(ImVec2(x, y), 1.0f, MyHitTests::TriangleHitTest(local_point, hit_test_data.Triangles[0]) ? IM_COL32(255, 0, 255, 255) : 0);
+                }
+            }
+        }
+#endif
+
+        ImGui::PopClipRect();
+        draw_list->AddRect(hit_test_data.WorkArea.Min, hit_test_data.WorkArea.Max, IM_COL32(255, 255, 0, 255));
+    }
+
+    first_time_shown = false;
 
     ImGui::End();
 }
